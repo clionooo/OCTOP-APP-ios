@@ -65,9 +65,6 @@ struct ConsoleView: View {
                 ).zIndex(4)
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            bottomBar
-        }
         .navigationTitle(server.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -101,58 +98,6 @@ struct ConsoleView: View {
         }
     }
 
-    // MARK: 底部工具条
-
-    private var bottomBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-            HStack(spacing: 0) {
-                barButton("chevron.backward", enabled: model.canGoBack) { model.goBack() }
-                barButton("chevron.forward", enabled: model.canGoForward) { model.goForward() }
-                barButton("arrow.clockwise", enabled: !model.isLoading) { model.reload() }
-                barButton("house", enabled: true) { model.loadHome() }
-                Menu {
-                    Button {
-                        shareItems = [server.address]
-                    } label: {
-                        Label("分享当前地址", systemImage: "square.and.arrow.up")
-                    }
-                    Button {
-                        if let url = URL(string: server.address) {
-                            UIApplication.shared.open(url)
-                        }
-                    } label: {
-                        Label("在 Safari 中打开", systemImage: "safari")
-                    }
-                    Divider()
-                    Toggle(isOn: $settings.desktopMode) {
-                        Label("桌面模式", systemImage: "menubar.dock.rectangle")
-                    }
-                    zoomControls
-                    Divider()
-                    Button {
-                        onEditServer()
-                    } label: {
-                        Label("服务器设置", systemImage: "slider.horizontal.3")
-                    }
-                    Button(role: .destructive) {
-                        showLogoutConfirm = true
-                    } label: {
-                        Label("退出登录", systemImage: "rectangle.portrait.and.arrow.right")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 21, weight: .regular))
-                        .frame(width: 52, height: 42)
-                        .foregroundColor(.accentColor)
-                }
-                .accessibilityLabel("更多操作")
-            }
-            .padding(.vertical, 4)
-            .background(Color(uiColor: .systemBackground))
-        }
-    }
-
     private var zoomControls: some View {
         HStack {
             Label("页面缩放", systemImage: "plus.magnifyingglass")
@@ -175,33 +120,51 @@ struct ConsoleView: View {
 
     private var menu: some View {
         Menu {
-            Toggle(isOn: $settings.desktopMode) {
-                Label("桌面模式", systemImage: "menubar.dock.rectangle")
-            }
             Button {
                 model.loadHome()
             } label: {
                 Label("回到首页", systemImage: "house")
             }
+            Button {
+                model.reload()
+            } label: {
+                Label("刷新页面", systemImage: "arrow.clockwise")
+            }
+            Button {
+                shareItems = [server.address]
+            } label: {
+                Label("分享当前地址", systemImage: "square.and.arrow.up")
+            }
+            Button {
+                if let url = URL(string: server.address) {
+                    UIApplication.shared.open(url)
+                }
+            } label: {
+                Label("在 Safari 中打开", systemImage: "safari")
+            }
+
+            Divider()
+            Toggle(isOn: $settings.desktopMode) {
+                Label("桌面模式", systemImage: "menubar.dock.rectangle")
+            }
+            zoomControls
+
+            Divider()
+            Button {
+                onEditServer()
+            } label: {
+                Label("服务器设置", systemImage: "slider.horizontal.3")
+            }
+            Button(role: .destructive) {
+                showLogoutConfirm = true
+            } label: {
+                Label("退出登录", systemImage: "rectangle.portrait.and.arrow.right")
+            }
         } label: {
             Image(systemName: "ellipsis.circle")
+                .font(.system(size: 19, weight: .medium))
         }
-    }
-
-    private func barButton(_ icon: String,
-                           enabled: Bool,
-                           action: @escaping () -> Void) -> some View {
-        Button(action: {
-            Haptics.light()
-            action()
-        }) {
-            Image(systemName: icon)
-                .font(.system(size: 21, weight: .regular))
-                .frame(width: 52, height: 42)
-        }
-        .foregroundColor(enabled ? .accentColor : Color(uiColor: .tertiaryLabel))
-        .disabled(!enabled)
-        .accessibilityLabel(icon)
+        .accessibilityLabel("更多操作")
     }
 
     // MARK: 覆盖层

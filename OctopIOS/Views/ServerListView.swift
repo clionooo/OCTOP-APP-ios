@@ -16,7 +16,7 @@ struct ServerListView: View {
                 serverList
             }
         }
-        .navigationTitle("Octop")
+        .navigationTitle("OCTOP")
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 NavigationLink(destination: GlobalSettingsView()) {

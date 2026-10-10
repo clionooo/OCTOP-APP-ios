@@ -9,7 +9,7 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: "1.0.0"
+    MARKETING_VERSION: "1.1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     IPHONEOS_DEPLOYMENT_TARGET: "15.0"
@@ -41,7 +41,7 @@ targets:
         CFBundleName: "$(PRODUCT_NAME)"
         CFBundlePackageType: APPL
         CFBundleInfoDictionaryVersion: "6.0"
-        CFBundleDisplayName: Octop
+        CFBundleDisplayName: OCTOP
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         CFBundleDevelopmentRegion: zh_CN

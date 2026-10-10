@@ -117,6 +117,9 @@ struct WebConsoleView: UIViewRepresentable {
             content.addUserScript(WKUserScript(source: Self.bridgeScript,
                                                injectionTime: .atDocumentStart,
                                                forMainFrameOnly: true))
+            content.addUserScript(WKUserScript(source: Self.pwaSuppressScript,
+                                               injectionTime: .atDocumentEnd,
+                                               forMainFrameOnly: true))
             if appliedDesktopMode {
                 content.addUserScript(WKUserScript(source: Self.desktopViewportScript,
                                                    injectionTime: .atDocumentEnd,
@@ -138,6 +141,52 @@ struct WebConsoleView: UIViewRepresentable {
           }
           setInterval(report, 800);
           report();
+        })();
+        """
+
+        /// Octop 网页会弹「添加到主屏幕」PWA 引导 —— 在 App 里纯属多余，
+        /// 这里按文案定位弹层，把最外层的浮层整块隐藏掉。
+        static let pwaSuppressScript = """
+        (function(){
+          if (window.__octopPwaSuppress) return;
+          window.__octopPwaSuppress = true;
+          var PATTERN = /添加到主屏幕|安装为\\s*App|添加至主屏幕|安装到主屏幕/;
+          function looksLikeAppShell(el){
+            try { return !!(el && el.querySelector && el.querySelector('nav, aside, main, header')); }
+            catch(e){ return false; }
+          }
+          function hide(el){
+            try { el.style.setProperty('display','none','important'); el.__octopHidden = true; } catch(e){}
+          }
+          function sweep(){
+            try {
+              var nodes = document.querySelectorAll('body *');
+              for (var i = 0; i < nodes.length; i++){
+                var el = nodes[i];
+                if (el.__octopHidden || el.style.display === 'none') continue;
+                var own = '';
+                for (var c = 0; c < el.childNodes.length; c++){
+                  var n = el.childNodes[c];
+                  if (n.nodeType === 3) own += n.textContent;
+                }
+                if (!PATTERN.test(own)) continue;
+                // 从文案往上找定位祖先，取最外层的浮层；但跳过包含页面主体的容器
+                var cur = el, best = null;
+                while (cur && cur !== document.body){
+                  var cs = getComputedStyle(cur);
+                  if ((cs.position === 'fixed' || cs.position === 'absolute') && !looksLikeAppShell(cur)){
+                    best = cur;
+                  }
+                  cur = cur.parentElement;
+                }
+                hide(best || el.parentElement || el);
+              }
+            } catch(e){}
+          }
+          setInterval(sweep, 600);
+          document.addEventListener('DOMContentLoaded', sweep);
+          setTimeout(sweep, 300);
+          sweep();
         })();
         """
 
