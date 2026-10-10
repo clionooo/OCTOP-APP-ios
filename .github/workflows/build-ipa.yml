@@ -26,8 +26,15 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Generate app icon
-        run: python3 scripts/gen_icon.py
+      - name: Ensure app icon exists (fallback only)
+        run: |
+          ICON=OctopIOS/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+          if [ -f "$ICON" ]; then
+            echo "using committed icon: $(ls -la $ICON)"
+          else
+            echo "icon missing, generating fallback"
+            python3 scripts/gen_icon.py
+          fi
 
       - name: Generate Xcode project
         run: xcodegen generate
@@ -102,7 +109,7 @@ jobs:
             iOS 15.0（巨魔支持 iOS 14.0 ~ 16.6.1 / 16.7 RC / 17.0）
 
             ### 想改
-            - 改配色 / 图标 → `scripts/gen_icon.py`
+            - 改图标 → 直接替换 `OctopIOS/Assets.xcassets/AppIcon.appiconset/icon-1024.png`（1024×1024 全出血 PNG）
             - 改最低系统版本 → `project.yml` 里的 `deploymentTarget`
             - 改 bundle id → `project.yml` 里的 `PRODUCT_BUNDLE_IDENTIFIER`
           files: ${{ runner.temp }}/Octop-iOS-unsigned.ipa

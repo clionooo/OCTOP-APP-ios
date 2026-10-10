@@ -6,8 +6,8 @@ xcuserdata/
 DerivedData/
 build/
 
-# 构建时由 scripts/gen_icon.py 生成
-OctopIOS/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+# 应用图标随仓库提交（官方 octop.cloud 图标，1024 全出血）
+# 注意：不要再忽略 icon-1024.png，否则 CI 会用 scripts/gen_icon.py 的兜底图标覆盖它
 
 # 产物
 *.ipa
