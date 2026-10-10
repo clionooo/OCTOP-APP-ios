@@ -1,0 +1,17 @@
+# XcodeGen 生成物
+Info.plist
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+build/
+
+# 构建时由 scripts/gen_icon.py 生成
+OctopIOS/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+
+# 产物
+*.ipa
+*.xcarchive
+
+.DS_Store
+__pycache__/

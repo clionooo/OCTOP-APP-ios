@@ -1,0 +1,119 @@
+name: Build unsigned IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# 允许用 GITHUB_TOKEN 更新 Release
+permissions:
+  contents: write
+
+concurrency:
+  group: build-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Octop iOS (unsigned, for TrollStore)
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate app icon
+        run: python3 scripts/gen_icon.py
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build (unsigned archive)
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project OctopIOS.xcodeproj \
+            -scheme OctopIOS \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/OctopIOS.xcarchive" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            ONLY_ACTIVE_ARCH=NO
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/OctopIOS.xcarchive/Products/Applications/OctopIOS.app"
+          echo "===== app bundle ====="
+          ls -la "$APP"
+          echo "===== MinimumOSVersion ====="
+          /usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" "$APP/Info.plist" || true
+          echo "===== CFBundleIdentifier ====="
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" || true
+
+          # 先做一遍 ad-hoc 签名，保证 payload 结构完整；TrollStore 装的时候会再用 ldid 重签
+          codesign --force --sign - --timestamp=none "$APP" || echo "ad-hoc codesign skipped"
+
+          rm -rf "$RUNNER_TEMP/Payload"
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/Payload/"
+          cd "$RUNNER_TEMP"
+          rm -f Octop-iOS-unsigned.ipa
+          zip -qry Octop-iOS-unsigned.ipa Payload
+          ls -la Octop-iOS-unsigned.ipa
+          echo "IPA_SIZE=$(du -h Octop-iOS-unsigned.ipa | cut -f1)" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Octop-iOS-unsigned-ipa
+          path: ${{ runner.temp }}/Octop-iOS-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Publish / update Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ipa-latest
+          name: "Octop iOS — 最新未签名 IPA"
+          body: |
+            ## Octop iOS（未签名，供 TrollStore / 巨魔安装）
+
+            每次推送到 `main` 都会自动重新打包，**这个 Release 永远是最新构建**。
+
+            **固定下载地址：**
+            `https://github.com/${{ github.repository }}/releases/download/ipa-latest/Octop-iOS-unsigned.ipa`
+
+            ### 安装（巨魔 TrollStore）
+            1. 下载上面的 IPA
+            2. 在 iPhone 上用 Safari 或「文件」打开 → 选「共享」→「TrollStore」
+            3. 或者在 TrollStore 里点右上角 `+` 选这个 IPA 文件
+            4. 第一次装如果报签名错误：TrollStore → 设置 → **Install ldid**，再装一次
+
+            ### 最低系统要求
+            iOS 15.0（巨魔支持 iOS 14.0 ~ 16.6.1 / 16.7 RC / 17.0）
+
+            ### 想改
+            - 改配色 / 图标 → `scripts/gen_icon.py`
+            - 改最低系统版本 → `project.yml` 里的 `deploymentTarget`
+            - 改 bundle id → `project.yml` 里的 `PRODUCT_BUNDLE_IDENTIFIER`
+          files: ${{ runner.temp }}/Octop-iOS-unsigned.ipa
+          make_latest: true
+          fail_on_unmatched_files: true
+
+      - name: Build summary
+        run: |
+          {
+            echo "### Build result"
+            echo ""
+            echo "- IPA size: **${IPA_SIZE:-unknown}**"
+            echo "- Download: \`https://github.com/${{ github.repository }}/releases/download/ipa-latest/Octop-iOS-unsigned.ipa\`"
+          } >> "$GITHUB_STEP_SUMMARY"
