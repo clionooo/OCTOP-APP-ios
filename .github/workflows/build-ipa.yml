@@ -3,6 +3,9 @@ name: Build unsigned IPA
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   workflow_dispatch:
 
 # 允许用 GITHUB_TOKEN 更新 Release
