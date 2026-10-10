@@ -276,8 +276,8 @@ struct WebConsoleView: UIViewRepresentable {
         private func reportError(_ error: Error) {
             let nsError = error as NSError
             if nsError.domain == NSURLErrorDomain, nsError.code == NSURLErrorCancelled { return }
-            let message = (error as? URLError).map { OctopAPIError.describe($0) }
-                ?? error.localizedDescription
+        let message = (error as? URLError).map { OctopAPI.describe($0) }
+            ?? error.localizedDescription
             DispatchQueue.main.async {
                 self.model?.loadError = message
                 self.model?.endRefreshControl()
@@ -369,7 +369,11 @@ struct WebConsoleView: UIViewRepresentable {
         }
 
         // MARK: 文件上传（input type=file）
+        // 说明：iOS 18.4+ SDK 把 WKOpenPanelParameters 标成了 18.4 起可用，
+        // 编译期需要 @available；但 ObjC 选择器在运行时不受影响，
+        // 所以 iOS 15/16 上点网页里的「上传文件」依然能正常弹出来。
 
+        @available(iOS 18.4, *)
         func webView(_ webView: WKWebView,
                      runOpenPanelWith parameters: WKOpenPanelParameters,
                      initiatedByFrame frame: WKFrameInfo,
