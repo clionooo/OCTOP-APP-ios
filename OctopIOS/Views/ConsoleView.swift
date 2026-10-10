@@ -32,6 +32,9 @@ struct ConsoleView: View {
                            token: currentToken,
                            settings: settings,
                            model: model)
+                // 键盘弹出时不要压缩 WebView：压缩会和 WebKit 自己的视口平移叠加，
+                // 导致输入框被顶出屏幕、页面下方留一大片白。交给 WebKit 处理（和 Safari 一致）。
+                .ignoresSafeArea(.keyboard, edges: .bottom)
                 .zIndex(0)
 
             if model.isLoading && model.progress < 1.0 {
@@ -167,7 +170,7 @@ struct ConsoleView: View {
         .accessibilityLabel("更多操作")
     }
 
-    // MARK: 覆盖层
+    // MARK: - 覆盖层
 
     private func overlayCard(title: String,
                              message: String,

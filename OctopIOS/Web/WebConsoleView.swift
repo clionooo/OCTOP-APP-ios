@@ -46,6 +46,7 @@ struct WebConsoleView: UIViewRepresentable {
         webView.overrideUserInterfaceStyle = settings.appearance.uiStyle
         context.coordinator.applyRefreshControl(in: webView, enabled: settings.pullToRefresh)
         context.coordinator.installScripts(in: webView, token: token)
+        context.coordinator.startKeyboardObserving(in: webView)
 
         if let url = model.homeURL {
             webView.load(URLRequest(url: url))
@@ -94,9 +95,52 @@ struct WebConsoleView: UIViewRepresentable {
         private var pendingDownloadName: String?
         private var pendingDownloadURL: URL?
         private var refreshControl: UIRefreshControl?
+        private var keyboardObservers: [NSObjectProtocol] = []
 
         init(_ parent: WebConsoleView) {
             self.parent = parent
+        }
+
+        deinit {
+            let center = NotificationCenter.default
+            keyboardObservers.forEach { center.removeObserver($0) }
+            keyboardObservers.removeAll()
+        }
+
+        // MARK: 键盘遮挡修复
+        // 背景：WebView 不再参与 SwiftUI 的键盘避让（ConsoleView 里 ignoresSafeArea(.keyboard)），
+        // 由 WebKit 像 Safari 一样平移视觉视口。但 WKWebView 有个老毛病：聚焦输入框时会把
+        // scrollView 顶出合法范围，键盘收起后留一屏白底。这里在键盘出现/变化/收起时把
+        // contentOffset 夹回合法区间，白底消失；配合 keyboardFixScript 保证输入框始终可见。
+
+        func startKeyboardObserving(in webView: WKWebView) {
+            let center = NotificationCenter.default
+            let events: [NSNotification.Name] = [
+                UIResponder.keyboardWillShowNotification,
+                UIResponder.keyboardDidChangeFrameNotification,
+                UIResponder.keyboardWillHideNotification
+            ]
+            keyboardObservers = events.map { name in
+                center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                    self?.clampScrollOffset(of: webView)
+                }
+            }
+        }
+
+        private func clampScrollOffset(of webView: WKWebView) {
+            let scrollView = webView.scrollView
+            // 手指正在拖动时不要抢滚动权
+            guard !scrollView.isTracking, !scrollView.isDragging, !scrollView.isDecelerating else { return }
+            DispatchQueue.main.async {
+                let minY = -scrollView.adjustedContentInset.top
+                let maxY = max(minY, scrollView.contentSize.height
+                                + scrollView.adjustedContentInset.bottom
+                                - scrollView.bounds.height)
+                let target = min(max(scrollView.contentOffset.y, minY), maxY)
+                if abs(scrollView.contentOffset.y - target) > 0.5 {
+                    scrollView.contentOffset = CGPoint(x: scrollView.contentOffset.x, y: target)
+                }
+            }
         }
 
         // MARK: 注入脚本
@@ -115,6 +159,9 @@ struct WebConsoleView: UIViewRepresentable {
                                                    forMainFrameOnly: true))
             }
             content.addUserScript(WKUserScript(source: Self.bridgeScript,
+                                               injectionTime: .atDocumentStart,
+                                               forMainFrameOnly: true))
+            content.addUserScript(WKUserScript(source: Self.keyboardFixScript,
                                                injectionTime: .atDocumentStart,
                                                forMainFrameOnly: true))
             content.addUserScript(WKUserScript(source: Self.pwaSuppressScript,
@@ -141,6 +188,38 @@ struct WebConsoleView: UIViewRepresentable {
           }
           setInterval(report, 800);
           report();
+        })();
+        """
+
+        /// 键盘适配：WebView 全屏不缩放，靠 visualViewport 感知键盘。
+        /// 键盘弹出后把聚焦的输入框滚到可视区中央，避免输入框被键盘盖住看不见。
+        static let keyboardFixScript = """
+        (function(){
+          if (window.__octopKbFix) return;
+          window.__octopKbFix = true;
+          var vv = window.visualViewport;
+          if (!vv) return;
+          var timer = null;
+          function reveal(){
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(function(){
+              try {
+                var el = document.activeElement;
+                var tag = el && el.tagName ? el.tagName.toUpperCase() : '';
+                var editable = tag === 'INPUT' || tag === 'TEXTAREA' ||
+                               tag === 'SELECT' || (el && el.isContentEditable);
+                if (editable) {
+                  var rect = el.getBoundingClientRect();
+                  var kbTop = vv.height + vv.offsetTop;
+                  var outOfView = rect.bottom > kbTop || rect.top < vv.offsetTop;
+                  if (outOfView) el.scrollIntoView({ block: 'center' });
+                }
+              } catch(e) {}
+            }, 150);
+          }
+          vv.addEventListener('resize', reveal);
+          vv.addEventListener('scroll', reveal);
+          window.addEventListener('focusin', reveal);
         })();
         """
 
